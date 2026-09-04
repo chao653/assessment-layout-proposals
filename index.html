@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>题卡与进度条布局重构 · 三方案对比</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --gray-50:#fafafa; --gray-100:#f3f4f6; --gray-200:#e5e7eb; --gray-400:#b1b1b1; --gray-500:#909090;
+  --ink:#18181b; --ink-2:#404040; --ink-3:#71717a; --ink-4:#888;
+  --purple:#7452e4; --purple-deep:#3c2686; --purple-ink:#190d40;
+  --peri-50:#f5f3ff; --peri-100:#ede8ff; --peri-200:#ddd5ff; --peri-300:#ac99ff; --chip-purple:#ddd3ff;
+  --amber-100:#fef3c7;
+  --b1:rgba(0,0,0,.12); --b2:rgba(0,0,0,.08); --binput:#e4e4e7;
+  --font:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%}
+body{
+  font-family:var(--font);background:#e2e4e9;color:var(--ink);
+  display:grid;place-items:center;padding:24px 16px 128px;min-height:100vh;
+}
+button{font-family:var(--font);cursor:pointer}
+
+/* ---------- 舞台与缩放 ---------- */
+#scaler{position:relative}
+#stage{
+  width:1440px;height:800px;position:relative;overflow:hidden;
+  transform-origin:top left;border-radius:12px;
+  box-shadow:0 24px 64px rgba(16,24,40,.16),0 2px 8px rgba(16,24,40,.06);
+  background:var(--gray-100);
+}
+.screen{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;gap:20px;background:var(--gray-100)}
+.screen.on{display:flex;animation:fade .18s ease}
+.screen.bleed{gap:0}
+@keyframes fade{from{opacity:.4}to{opacity:1}}
+
+/* ---------- 图标 ---------- */
+.ic{display:inline-block;width:16px;height:16px;flex:none;background:currentColor;
+  -webkit-mask:var(--u) center/contain no-repeat;mask:var(--u) center/contain no-repeat}
+.ic-wrench{--u:url(assets/wrench.svg)} .ic-chevdown{--u:url(assets/chevron-down.svg)}
+.ic-plus{--u:url(assets/plus.svg)} .ic-rotate{--u:url(assets/rotate-ccw.svg)}
+.ic-minus{--u:url(assets/minus.svg)} .ic-more{--u:url(assets/ellipsis-vertical.svg)}
+.ic-clip{--u:url(assets/clipboard-pen.svg)} .ic-cx{--u:url(assets/circle-x.svg)}
+.ic-bookmark{--u:url(assets/bookmark.svg)}
+.ic-chevl{--u:url(assets/chevron-left.svg)} .ic-chevr{--u:url(assets/chevron-right.svg)}
+.ic-chevl2{--u:url(assets/chevron-left-nav.svg)} .ic-eye{--u:url(assets/eye.svg)}
+
+/* ---------- 顶栏 ---------- */
+.topbar{width:100%;height:60px;background:#fff;border-bottom:1px solid var(--gray-200);
+  display:flex;align-items:center;justify-content:space-between;padding:0 16px;position:relative;flex:none}
+.tb-name{font-size:18px;font-weight:500;color:#000;padding:0 8px;white-space:nowrap}
+.tb-count{position:absolute;left:50%;transform:translateX(-50%);top:7px;display:flex;align-items:flex-start}
+.tb-num{width:36px;display:flex;flex-direction:column;align-items:center;gap:4px;padding:4px 0}
+.tb-num b{font-size:20px;font-weight:500;color:var(--purple-deep);line-height:1}
+.tb-num span{font-size:12px;color:var(--ink-4);line-height:1}
+.tb-colon{font-size:20px;color:var(--ink-3);padding-top:6px;line-height:1}
+.tb-right{display:flex;align-items:center;gap:16px}
+.tb-ghost{display:flex;align-items:center;gap:8px;height:36px;padding:8px 12px;border:0;background:transparent;
+  border-radius:9999px;font-size:14px;font-weight:500;color:#000}
+.tb-ghost:hover{background:var(--gray-50)}
+.tb-zoom{display:flex}
+.tb-zoom button{width:32px;height:32px;display:flex;align-items:center;justify-content:center;background:#fff;border:1px solid var(--binput)}
+.tb-zoom button:first-child{border-radius:4px 0 0 4px}
+.tb-zoom button:nth-child(2){border-left:0;border-right:0}
+.tb-zoom button:last-child{border-radius:0 4px 4px 0;background:#f4f4f5}
+
+/* ---------- Section 进度条（浮动版，原稿/已出稿/方案二用） ---------- */
+.stepper{width:468px;display:flex;flex-direction:column;gap:6px;flex:none}
+.stp-track{height:8px;border-radius:9999px;background:#f1edff;overflow:hidden}
+.stp-fill{width:50%;height:100%;background:linear-gradient(90deg,#dcd2ff,#7452e4)}
+.stp-labels{display:grid;grid-template-columns:repeat(4,1fr);font-size:14px;font-weight:500;text-align:center}
+.stp-labels span{color:var(--ink-3);opacity:.6}
+.stp-labels .done{color:var(--purple-ink);opacity:.6}
+.stp-labels .cur{color:var(--purple-ink);opacity:1}
+.stepper-row{width:100%;height:36px;display:flex;justify-content:center;align-items:flex-start;flex:none}
+
+/* ---------- 方案一：进度并入顶栏（chrome 标签条） ---------- */
+.chrome-head{width:100%;flex:none;display:flex;flex-direction:column}
+.sec-tabs{width:100%;height:40px;background:#fff;border-bottom:1px solid var(--gray-200);
+  display:flex;justify-content:center;gap:8px}
+.sec-tab{width:200px;position:relative;display:flex;align-items:center;justify-content:center;
+  font-size:14px;font-weight:500;color:var(--ink-3)}
+.sec-tab i{position:absolute;bottom:-1px;left:12px;right:12px;height:3px;border-radius:3px 3px 0 0;background:transparent}
+.sec-tab.done{color:var(--purple-ink);opacity:.72}
+.sec-tab.done i{background:var(--peri-300)}
+.sec-tab.cur{color:var(--purple-ink)}
+.sec-tab.cur i{background:linear-gradient(90deg,#dcd2ff,#7452e4)}
+
+/* ---------- 大卡片（单卡） ---------- */
+.card{width:1344px;flex:1;min-height:0;background:#fff;border:1px solid var(--b1);border-radius:16px;
+  display:flex;flex-direction:column;overflow:hidden}
+.card.pad-top{padding-top:32px;gap:24px}
+.card .in-stepper{height:36px;display:flex;justify-content:center;flex:none}
+.content-row{flex:1;min-height:0;display:flex;align-items:stretch;margin:0 24px;position:relative}
+.card.pad-top .content-row{border-top:1px solid var(--b1)}
+
+/* ---------- 方案二：阅读卡 × 答题卡 ---------- */
+.split-row{width:1344px;flex:1;min-height:0;display:flex;gap:20px;align-items:stretch}
+.scard{background:#fff;border:1px solid var(--b1);border-radius:16px;overflow:hidden;display:flex;min-height:0}
+.scard.read{flex:none;padding-left:24px}
+.scard.read .p-pass{width:502px;flex:none}
+.scard.ans{flex:1;min-width:0}
+.scard.ans .p-q{padding:24px}
+
+/* ---------- 方案三：全宽工作区 ---------- */
+.workspace{width:100%;flex:1;min-height:0;background:#fff;display:flex}
+.ws-row{flex:1;min-width:0;display:flex;align-items:stretch}
+.ws-row .p-pass{padding-left:48px}
+.ws-row .p-q{padding-right:48px}
+.screen.bleed .qnav{border-top:1px solid var(--gray-200)}
+.qn-sec{display:flex;flex-direction:column;justify-content:center;gap:5px;flex:none}
+.qn-sec-label{font-size:13px;display:flex;gap:6px;align-items:baseline;white-space:nowrap}
+.qn-sec-label b{font-weight:500;color:var(--ink)}
+.qn-sec-label span{font-size:12px;color:var(--ink-3)}
+.qn-sec-segs{display:flex;gap:4px}
+.qn-sec-segs i{width:26px;height:4px;border-radius:2px;background:var(--gray-200)}
+.qn-sec-segs i.done{background:var(--peri-300)}
+.qn-sec-segs i.cur{background:linear-gradient(90deg,#dcd2ff,#7452e4)}
+.qn-divider{width:1px;height:32px;background:var(--gray-200);flex:none;margin:0 4px}
+
+/* ---------- 原文面板 ---------- */
+.p-pass{flex:1;min-width:0;position:relative;background:#fff;padding:24px 32px 0 0;overflow:hidden}
+.pp-title-row{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:8px}
+.pp-title-row h2{font-size:18px;font-weight:600;line-height:28px;color:var(--ink)}
+.pp-text{font-size:16px;line-height:24px;color:var(--ink)}
+.pp-text p{margin:0}
+mark.hl{background:var(--amber-100);color:inherit}
+.sel{background:var(--peri-100)}
+.fake-scrollbar{position:absolute;right:8px;top:24px;width:8px;height:320px;border-radius:20px;background:var(--gray-400)}
+.float-tools{position:absolute;z-index:6;display:flex;align-items:center;padding:4px 8px;background:#fff;
+  border:1px solid #e6e6e6;border-radius:8px;box-shadow:2px 2px 8px rgba(16,24,40,.08)}
+.ft-swatch-wrap{padding:0 12px;display:flex}
+.ft-swatch{width:16px;height:16px;border-radius:2px;background:var(--peri-200)}
+.ft-btn{width:40px;height:40px;display:flex;align-items:center;justify-content:center;border:0;background:transparent;border-radius:9999px;color:var(--ink)}
+.ft-btn:hover{background:var(--gray-50)}
+.cursor-decal{position:absolute;z-index:5;width:41px;height:45px;pointer-events:none}
+.cursor-decal img.cur{position:absolute;left:0;top:0;width:30px;height:30px}
+.cursor-decal img.hi{position:absolute;left:16px;top:21px;width:24px;height:24px}
+
+/* ---------- Note 区（原样保留：竖排开关 + 灰底便签栏 + 拖拽条） ---------- */
+.act-switch{width:30px;background:#fff;border-right:1px solid var(--gray-200);padding:24px 0;flex:none}
+.act-switch .tab{width:100%;background:var(--gray-200);border:0;border-radius:4px 0 0 4px;padding:12px 0;
+  display:flex;justify-content:center}
+.act-switch .tab span{writing-mode:vertical-rl;font-size:14px;font-weight:500;color:var(--ink-2);letter-spacing:.01em}
+.notes-col{width:256px;background:var(--gray-200);flex:none;overflow:hidden;transition:width .24s ease}
+.notes-col .inner{width:240px;margin:16px auto 0;display:flex;flex-direction:column;gap:8px}
+.onote{display:flex;flex-direction:column}
+.onote-head{background:var(--peri-50);border-radius:8px 8px 0 0;padding:8px 12px;display:flex;align-items:center;gap:16px}
+.onote-head span{flex:1;min-width:0;font-size:12px;font-weight:500;line-height:16px;color:#464646;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.onote-head img{width:16px;height:16px;flex:none;cursor:pointer}
+.onote-body{background:#fff;border-radius:0 0 8px 8px;padding:8px 12px;font-size:12px;line-height:16px;color:#000}
+.onote-body.ph{color:var(--gray-400);min-height:48px}
+.screen.notes-closed .notes-col{width:0}
+.vhandle{width:4px;height:100%;flex:none;object-fit:fill}
+
+/* ---------- 题目面板（全方案共用） ---------- */
+.p-q{flex:1;min-width:0;background:#fff;padding:24px 0 24px 24px;display:flex;flex-direction:column;gap:16px}
+.qcard{background:#fff;border:1px solid var(--b2);border-radius:16px;padding:24px;display:flex;flex-direction:column;gap:16px}
+.qc-head{height:36px;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.qc-left{display:flex;align-items:center;gap:8px;min-width:0}
+.qc-num{width:36px;height:36px;border-radius:6px;background:#f4f4f5;display:flex;align-items:center;justify-content:center;
+  font-size:14px;font-weight:500;color:var(--ink);flex:none}
+.qc-type{font-size:14px;font-weight:500;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.qc-pts{width:56px;padding:8px 12px;border-radius:6px;background:#f5f5f5;font-size:14px;color:#0a0a0a;white-space:nowrap;flex:none}
+.qc-stem{font-size:16px;font-weight:500;line-height:24px;color:#0a0a0a}
+.qc-opts{display:flex;flex-direction:column;gap:8px}
+.opt{display:flex;align-items:center;gap:12px;min-height:48px;padding:10px 12px;border-radius:8px;background:#fff;
+  border:1px solid var(--b1);border-right-width:2px;border-bottom-width:2px;font-size:16px;color:#0a0a0a;cursor:pointer}
+.opt .radio{width:16px;height:16px;border-radius:9999px;background:#fff;border:1px solid var(--ink-4);flex:none;margin:0 4px}
+.opt.sel-opt{background:var(--peri-50);border-color:var(--peri-300)}
+.opt.sel-opt .radio{border:0;background:url(assets/radio-selected.svg) center/contain no-repeat}
+.panel-actions{display:flex;align-items:center;justify-content:space-between}
+.pill{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:40px;padding:0 16px;
+  border:1px solid var(--binput);border-radius:9999px;background:#fff;font-size:14px;font-weight:500;color:var(--ink)}
+.pill:hover{background:var(--gray-50)}
+.pn-group{display:flex;gap:4px}
+
+/* ---------- 底部题号导航 ---------- */
+.qnav{width:100%;height:64px;background:#fff;display:flex;align-items:center;gap:12px;padding:12px 16px;flex:none}
+.qn-arrow{width:40px;height:40px;border-radius:9999px;border:1px solid var(--binput);background:#fff;
+  display:flex;align-items:center;justify-content:center;flex:none}
+.qn-arrow.dis{opacity:.5}
+.qn-arrow .flip{transform:rotate(180deg)}
+.qn-chips{flex:1;min-width:0;display:flex;gap:12px;overflow:hidden}
+.qn-chip{width:40px;height:40px;border-radius:6px;background:#fafafa;color:var(--gray-500);
+  display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:500;flex:none}
+.qn-chip.answered{background:var(--chip-purple);color:#fff}
+.qn-chip.current{background:var(--purple);color:#fff}
+.qn-submit{width:96px;height:40px;border:0;border-radius:9999px;background:var(--purple);color:#fafafa;font-size:14px;font-weight:500}
+
+/* ---------- 悬浮切换器 ---------- */
+#switcher{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);z-index:100;
+  display:flex;flex-direction:column;align-items:center;gap:10px;width:max-content;max-width:calc(100vw - 32px)}
+#swDesc{background:rgba(24,24,27,.92);color:#fff;font-size:12.5px;line-height:18px;padding:8px 14px;
+  border-radius:10px;max-width:660px;text-align:center;box-shadow:0 8px 24px rgba(16,24,40,.2)}
+#swDesc b{color:#cabdff;font-weight:600}
+#swTabs{display:flex;gap:2px;background:#fff;padding:4px;border-radius:9999px;
+  border:1px solid var(--b2);box-shadow:0 8px 24px rgba(16,24,40,.16)}
+#swTabs button{height:34px;padding:0 14px;border:0;background:transparent;border-radius:9999px;
+  font-size:13px;font-weight:500;color:#52525b;white-space:nowrap}
+#swTabs button:hover{background:var(--gray-100)}
+#swTabs button.on{background:var(--purple);color:#fff}
+#swTabs button .k{font-size:10.5px;opacity:.55;margin-right:5px;font-weight:600}
+</style>
+</head>
+<body>
+
+<div id="scaler"><div id="stage"></div></div>
+
+<div id="switcher">
+  <div id="swDesc"></div>
+  <div id="swTabs">
+    <button data-v="0"><span class="k">1</span>原稿</button>
+    <button data-v="1"><span class="k">2</span>已出优化稿</button>
+    <button data-v="2"><span class="k">3</span>方案一 · 进度并入顶栏</button>
+    <button data-v="3"><span class="k">4</span>方案二 · 阅读卡×答题卡</button>
+    <button data-v="4"><span class="k">5</span>方案三 · 全宽工作区</button>
+  </div>
+</div>
+
+<script>
+/* ================= 共用片段 ================= */
+const ic = (n, extra = '') => `<span class="ic ic-${n}${extra ? ' ' + extra : ''}"></span>`;
+
+const topBar = () => `
+<div class="topbar">
+  <div class="tb-name">[Assessment Name]</div>
+  <div class="tb-count">
+    <div class="tb-num"><b>00</b><span>hr</span></div><div class="tb-colon">：</div>
+    <div class="tb-num"><b>38</b><span>min</span></div><div class="tb-colon">：</div>
+    <div class="tb-num"><b>25</b><span>sec</span></div>
+  </div>
+  <div class="tb-right">
+    <button class="tb-ghost">${ic('wrench')}Tools ${ic('chevdown')}</button>
+    <div class="tb-zoom">
+      <button>${ic('plus')}</button><button>${ic('rotate')}</button><button>${ic('minus')}</button>
+    </div>
+    <button class="tb-ghost">More ${ic('more')}</button>
+  </div>
+</div>`;
+
+const stepper = () => `
+<div class="stepper">
+  <div class="stp-track"><div class="stp-fill"></div></div>
+  <div class="stp-labels">
+    <span class="done">Section 1</span><span class="cur">Section 2</span>
+    <span>Section 3</span><span>Section 4</span>
+  </div>
+</div>`;
+
+const secTabs = () => `
+<div class="sec-tabs">
+  <div class="sec-tab done"><span>Section 1</span><i></i></div>
+  <div class="sec-tab cur"><span>Section 2</span><i></i></div>
+  <div class="sec-tab"><span>Section 3</span><i></i></div>
+  <div class="sec-tab"><span>Section 4</span><i></i></div>
+</div>`;
+
+const passageParas = () => `
+<p><mark class="hl">The morning light filtered through the kitchen window as Elena watched her grandmother knead the dough with practiced hands.</mark> Each fold carried decades of memory — of harvests and hunger, of celebrations that spanned generations in their small village outside Oaxaca.</p>
+<p>"You're not paying attention," Abuela said without looking up. Her fingers worked the masa with a rhythm that seemed as natural as breathing, pressing and turning, pressing and turning. "The dough tells you when it's ready. You have to listen."</p>
+<p>She had come to spend the summer with her grandmother partly out of obligation — her mother's gentle insistence — and partly out of a vague curiosity about the life her family had left behind when they moved to Phoenix. <span class="sel">But after two weeks of early mornings and flour-dusted afternoons,</span> the romantic notion of "connecting with her roots" had given way to the tedium of repetition.</p>
+<p>"I am listening," Elena said, though her mind had already drifted to the messages piling up on her phone, hidden in the pocket of her apron. Her friends were at the lake today. She could picture them: sunburned and laughing, posting stories she would scroll through later with an ache she couldn't quite name.</p>
+<p>Abuela paused her work and looked at Elena with eyes that held neither judgment nor sympathy — just a steady, unsentimental clarity. "When I was your age, I didn't want to learn this either. I wanted to go to the city, become a teacher, wear shoes that weren't covered in cornmeal." She resumed kneading. "But your great-grandmother told me something I didn't understand until much later: the things we carry forward aren't always the things we choose."</p>
+<p>Elena picked up her own ball of dough and began to work it, mimicking her grandmother's movements. The masa was cool and slightly sticky. She pressed too hard, and it spread thin in the center.</p>`;
+
+const passagePanel = () => `
+<div class="p-pass">
+  <div class="pp-title-row"><h2>Passage A — Literary Narrative</h2></div>
+  <div class="pp-text">${passageParas()}</div>
+  <div class="float-tools">
+    <div class="ft-swatch-wrap"><div class="ft-swatch"></div></div>
+    <button class="ft-btn">${ic('clip')}</button>
+    <button class="ft-btn">${ic('cx')}</button>
+  </div>
+  <div class="cursor-decal">
+    <img class="cur" src="assets/cursor.svg" alt=""><img class="hi" src="assets/highlighter.svg" alt="">
+  </div>
+  <div class="fake-scrollbar"></div>
+</div>`;
+
+const questionPanel = () => `
+<div class="p-q">
+  <div class="qcard">
+    <div class="qc-head">
+      <div class="qc-left"><div class="qc-num">1</div><div class="qc-type">Multiple Choice</div></div>
+      <div class="qc-pts">2 pts</div>
+    </div>
+    <div class="qc-stem">Which crop was known as "King Cotton" and dominated the Southern economy before the Civil War?</div>
+    <div class="qc-opts">
+      <div class="opt"><span class="radio"></span>Tobacco</div>
+      <div class="opt sel-opt"><span class="radio"></span>Cotton</div>
+      <div class="opt"><span class="radio"></span>Rice</div>
+      <div class="opt"><span class="radio"></span>Indigo</div>
+    </div>
+  </div>
+  <div class="panel-actions">
+    <button class="pill">${ic('bookmark')}Mark for Review</button>
+    <div class="pn-group">
+      <button class="pill">${ic('chevl')}Prev</button>
+      <button class="pill">Next ${ic('chevr')}</button>
+    </div>
+  </div>
+</div>`;
+
+const qNav = (withSection = false) => {
+  let chips = '';
+  for (let i = 1; i <= 24; i++) {
+    const cls = i === 1 ? ' answered' : i === 2 ? ' current' : '';
+    chips += `<div class="qn-chip${cls}">${i}</div>`;
+  }
+  const sec = withSection ? `
+  <div class="qn-sec">
+    <div class="qn-sec-label"><b>Section 2</b><span>of 4</span></div>
+    <div class="qn-sec-segs"><i class="done"></i><i class="cur"></i><i></i><i></i></div>
+  </div>
+  <div class="qn-divider"></div>` : '';
+  return `
+<div class="qnav">
+  ${sec}
+  <button class="qn-arrow dis">${ic('chevl2')}</button>
+  <div class="qn-chips">${chips}</div>
+  <button class="qn-arrow"><span class="flip" style="display:flex">${ic('chevl2')}</span></button>
+  <button class="pill">${ic('eye')}View All</button>
+  <button class="qn-submit">Submit</button>
+</div>`;
+};
+
+/* ================= Note 区（各方案原样保留） ================= */
+const oldNote = (quote, body, isPh) => `
+<div class="onote">
+  <div class="onote-head"><span>${quote}</span><img src="assets/trash-2.svg" alt=""></div>
+  <div class="onote-body${isPh ? ' ph' : ''}">${body}</div>
+</div>`;
+
+const NOTE_A = oldNote('By her sixth month in the city, the calls had begun to trickle in.',
+  'small, smoky, and frequently terrible. She played for free. She watched. She listened to the other musicians.');
+const NOTE_B = oldNote('If anything, the rejections had been', 'type your notes here', true);
+
+const actSwitch = () => `
+<div class="act-switch"><button class="tab" data-act="toggle-notes"><span>Show</span></button></div>`;
+
+const notesRegion = (count = 2) => `
+${actSwitch()}
+<div class="notes-col"><div class="inner">
+  ${NOTE_A}${count === 2 ? NOTE_B : ''}
+</div></div>`;
+
+const handle = () => `<img class="vhandle" src="assets/divider-handle.svg" alt="">`;
+
+/* ================= 五个画面 ================= */
+
+/* 原稿：进度条在卡内 + 单卡三栏 */
+const screen0 = () => `
+${topBar()}
+<div class="card pad-top">
+  <div class="in-stepper">${stepper()}</div>
+  <div class="content-row">
+    ${passagePanel()}
+    ${notesRegion(2)}
+    ${handle()}
+    ${questionPanel()}
+  </div>
+</div>
+${qNav()}`;
+
+/* 已出优化稿：进度条外移浮在页面上，卡结构未动 */
+const screen1 = () => `
+${topBar()}
+<div class="stepper-row">${stepper()}</div>
+<div class="card">
+  <div class="content-row">
+    ${passagePanel()}
+    ${notesRegion(1)}
+    ${handle()}
+    ${questionPanel()}
+  </div>
+</div>
+${qNav()}`;
+
+/* 方案一：进度并入顶栏 chrome，单卡纯内容 */
+const screen2 = () => `
+<div class="chrome-head">
+  ${topBar()}
+  ${secTabs()}
+</div>
+<div class="card">
+  <div class="content-row">
+    ${passagePanel()}
+    ${notesRegion(2)}
+    ${handle()}
+    ${questionPanel()}
+  </div>
+</div>
+${qNav()}`;
+
+/* 方案二：拆成阅读卡 + 答题卡 */
+const screen3 = () => `
+${topBar()}
+<div class="stepper-row">${stepper()}</div>
+<div class="split-row">
+  <div class="scard read">
+    ${passagePanel()}
+    ${notesRegion(2)}
+  </div>
+  <div class="scard ans">
+    ${questionPanel()}
+  </div>
+</div>
+${qNav()}`;
+
+/* 方案三：全宽工作区，进度并入底部控制条 */
+const screen4 = () => `
+${topBar()}
+<div class="workspace">
+  <div class="ws-row">
+    ${passagePanel()}
+    ${notesRegion(2)}
+    ${handle()}
+    ${questionPanel()}
+  </div>
+</div>
+${qNav(true)}`;
+
+/* ================= 渲染 ================= */
+const stage = document.getElementById('stage');
+[screen0(), screen1(), screen2(), screen3(), screen4()].forEach((html, i) => {
+  const el = document.createElement('div');
+  el.className = 'screen' + (i === 4 ? ' bleed' : '');
+  el.dataset.v = i;
+  el.innerHTML = html;
+  stage.appendChild(el);
+});
+
+const DESCS = [
+  '<b>原稿（复刻）</b>：进度条在卡片里、三栏又挤在同一张卡里，note 展开时中间出现四条竖缝，上下再叠一层进度——乱感来源。点竖排「Show」条可收起/展开便签。',
+  '<b>已出优化稿（复刻）</b>：进度条移出卡片、浮在页面背景上，卡内少一层；卡片本身的结构没动。',
+  '<b>方案一 · 进度并入顶栏</b>：Section 进度升级成顶栏 chrome——通栏标签条+底部进度轨，和内容彻底分层；大卡只装三栏内容，卡内零叠层。note 展开时卡里只有横向分区，没有上下夹层。',
+  '<b>方案二 · 阅读卡×答题卡</b>：大卡拆成两张——原文和便签同属「阅读卡」，题目独立成「答题卡」；note 展开只发生在阅读卡内部，答题卡永不被挤，卡间留白替代了原来最重的那条接缝。',
+  '<b>方案三 · 全宽工作区</b>：去掉大卡，内容通栏铺满（考试机风格）；Section 进度并入底部控制条、与题号导航合体，顶部更干净，三栏横向空间最大化。'
+];
+
+let SCALE = 1;
+let current = -1;
+
+function fit() {
+  const w = window.innerWidth - 32;
+  const h = window.innerHeight - 24 - 128;
+  SCALE = Math.min(w / 1440, h / 800, 1);
+  stage.style.transform = `scale(${SCALE})`;
+  const sc = document.getElementById('scaler');
+  sc.style.width = 1440 * SCALE + 'px';
+  sc.style.height = 800 * SCALE + 'px';
+}
+
+/* 划线选区 → 悬浮工具条 + 光标贴纸 定位 */
+function decoratePassage(screen) {
+  const sel = screen.querySelector('.sel');
+  const pass = screen.querySelector('.p-pass');
+  if (!sel || !pass) return;
+  const rects = sel.getClientRects();
+  if (!rects.length) return;
+  const base = pass.getBoundingClientRect();
+  const first = rects[0], last = rects[rects.length - 1];
+  const tools = screen.querySelector('.float-tools');
+  const decal = screen.querySelector('.cursor-decal');
+  if (tools) {
+    tools.style.left = (first.left - base.left) / SCALE + 42 + 'px';
+    tools.style.top = (first.top - base.top) / SCALE - 52 + 'px';
+  }
+  if (decal) {
+    decal.style.left = (last.right - base.left) / SCALE - 36 + 'px';
+    decal.style.top = (last.top - base.top) / SCALE + 12 + 'px';
+  }
+}
+
+function refresh(screen) {
+  if (!screen) return;
+  requestAnimationFrame(() => decoratePassage(screen));
+}
+
+function show(v) {
+  if (v === current) return;
+  current = v;
+  document.querySelectorAll('.screen').forEach(s => s.classList.toggle('on', +s.dataset.v === v));
+  document.querySelectorAll('#swTabs button').forEach(b => b.classList.toggle('on', +b.dataset.v === v));
+  document.getElementById('swDesc').innerHTML = DESCS[v];
+  location.hash = 'v' + v;
+  refresh(stage.querySelector('.screen.on'));
+}
+
+/* 交互 */
+document.getElementById('swTabs').addEventListener('click', e => {
+  const b = e.target.closest('button[data-v]');
+  if (b) show(+b.dataset.v);
+});
+window.addEventListener('keydown', e => {
+  if (/^[1-5]$/.test(e.key)) show(+e.key - 1);
+});
+stage.addEventListener('click', e => {
+  const act = e.target.closest('[data-act="toggle-notes"]');
+  if (!act) return;
+  const screen = act.closest('.screen');
+  screen.classList.toggle('notes-closed');
+  setTimeout(() => refresh(screen), 260);
+});
+
+window.addEventListener('resize', () => { fit(); refresh(stage.querySelector('.screen.on')); });
+document.fonts && document.fonts.ready.then(() => refresh(stage.querySelector('.screen.on')));
+
+fit();
+const initV = /^#v[0-4]$/.test(location.hash) ? +location.hash.slice(2) : 0;
+show(initV);
+</script>
+</body>
+</html>
