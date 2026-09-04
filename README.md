@@ -12,6 +12,6 @@ HTML prototype comparing layout structures for an assessment answer page (questi
 4. **方案二 · 阅读卡×答题卡** — the single card splits into a reading card (passage + notes) and an independent answer card
 5. **方案三 · 全宽工作区** — no card: full-bleed workspace; section progress merges into the bottom control bar next to question navigation
 
-Switch tabs with the floating pill at the top right (hover it to see each proposal's description), or press keys 1–5. Click the vertical "Show" strip in each screen to collapse/expand the notes column.
+Switch tabs with the floating pill at the top left, or press keys 1–5. Click the vertical "Show" strip in each screen to collapse/expand the notes column.
 
 Base viewport: 1440×800 (auto-scales to fill the window).
