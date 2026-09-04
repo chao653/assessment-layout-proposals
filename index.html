@@ -77,10 +77,13 @@ button{font-family:var(--font);cursor:pointer}
 .stp-labels .cur{color:var(--purple-ink);opacity:1}
 .stepper-row{width:100%;height:36px;display:flex;justify-content:center;align-items:flex-start;flex:none}
 
-/* ---------- 已出稿·默认态：文字版 Section 指示 ---------- */
+/* ---------- 已出稿·默认态：文字版 Section 指示（画板 1440×750） ---------- */
 .sec-text{width:100%;height:24px;display:flex;align-items:center;justify-content:center;gap:4px;flex:none;white-space:nowrap}
 .sec-text b{font-size:16px;font-weight:500;line-height:24px;color:#0a0a0a}
 .sec-text span{font-size:14px;font-weight:400;line-height:20px;color:var(--ink-4)}
+.screen.s-default{gap:0}
+.s-default .sec-text{margin:24px 0 8px}
+.s-default .card{margin-bottom:24px}
 
 /* ---------- 方案一：进度并入顶栏（chrome 标签条） ---------- */
 .chrome-head{width:100%;flex:none;display:flex;flex-direction:column}
@@ -362,7 +365,9 @@ const actSwitch = () => `
 const notesRegion = (count = 2) => `
 ${actSwitch()}
 <div class="notes-col"><div class="inner">
-  ${NOTE_A}${count === 2 ? NOTE_B : ''}
+  ${count === 2
+    ? NOTE_A + NOTE_B
+    : oldNote('By her sixth month in the city, the calls had begun to trickle in.', 'type your notes here', true)}
 </div></div>`;
 
 const handle = () => `<img class="vhandle" src="assets/divider-handle.svg" alt="">`;
@@ -458,8 +463,9 @@ ${qNav(true)}`;
 const stage = document.getElementById('stage');
 [screen0(), screen1(), screenDefault(), screen2(), screen3(), screen4()].forEach((html, i) => {
   const el = document.createElement('div');
-  el.className = 'screen' + (i === 5 ? ' bleed' : '');
+  el.className = 'screen' + (i === 5 ? ' bleed' : '') + (i === 2 ? ' s-default' : '');
   el.dataset.v = i;
+  el.dataset.h = i === 2 ? 750 : 800;
   el.innerHTML = html;
   stage.appendChild(el);
 });
@@ -468,11 +474,13 @@ let SCALE = 1;
 let current = -1;
 
 function fit() {
-  SCALE = Math.min(window.innerWidth / 1440, window.innerHeight / 800);
+  const h = +(stage.querySelector('.screen.on')?.dataset.h || 800);
+  SCALE = Math.min(window.innerWidth / 1440, window.innerHeight / h);
+  stage.style.height = h + 'px';
   stage.style.transform = `scale(${SCALE})`;
   const sc = document.getElementById('scaler');
   sc.style.width = 1440 * SCALE + 'px';
-  sc.style.height = 800 * SCALE + 'px';
+  sc.style.height = h * SCALE + 'px';
 }
 
 /* 划线选区 → 悬浮工具条 + 光标贴纸 定位 */
@@ -508,6 +516,7 @@ function show(v) {
   document.querySelectorAll('#swTabs button[data-v]').forEach(b => b.classList.toggle('on', +b.dataset.v === v));
   document.getElementById('swBall').textContent = v + 1;
   location.hash = 'v' + v;
+  fit();
   refresh(stage.querySelector('.screen.on'));
 }
 
