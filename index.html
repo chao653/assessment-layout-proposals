@@ -77,6 +77,11 @@ button{font-family:var(--font);cursor:pointer}
 .stp-labels .cur{color:var(--purple-ink);opacity:1}
 .stepper-row{width:100%;height:36px;display:flex;justify-content:center;align-items:flex-start;flex:none}
 
+/* ---------- 已出稿·默认态：文字版 Section 指示 ---------- */
+.sec-text{width:100%;height:24px;display:flex;align-items:center;justify-content:center;gap:4px;flex:none;white-space:nowrap}
+.sec-text b{font-size:16px;font-weight:500;line-height:24px;color:#0a0a0a}
+.sec-text span{font-size:14px;font-weight:400;line-height:20px;color:var(--ink-4)}
+
 /* ---------- 方案一：进度并入顶栏（chrome 标签条） ---------- */
 .chrome-head{width:100%;flex:none;display:flex;flex-direction:column}
 .sec-tabs{width:100%;height:40px;background:#fff;border-bottom:1px solid var(--gray-200);
@@ -211,9 +216,10 @@ mark.hl{background:var(--amber-100);color:inherit}
   <div id="swTabs">
     <button data-v="0"><span class="k">1</span>原稿</button>
     <button data-v="1"><span class="k">2</span>已出稿</button>
-    <button data-v="2"><span class="k">3</span>方案一·顶栏</button>
-    <button data-v="3"><span class="k">4</span>方案二·双卡</button>
-    <button data-v="4"><span class="k">5</span>方案三·全宽</button>
+    <button data-v="2"><span class="k">3</span>已出稿·默认</button>
+    <button data-v="3"><span class="k">4</span>方案一·顶栏</button>
+    <button data-v="4"><span class="k">5</span>方案二·双卡</button>
+    <button data-v="5"><span class="k">6</span>方案三·全宽</button>
   </div>
 </div>
 
@@ -255,18 +261,23 @@ const secTabs = () => `
   <div class="sec-tab"><span>Section 4</span><i></i></div>
 </div>`;
 
-const passageParas = () => `
-<p><mark class="hl">The morning light filtered through the kitchen window as Elena watched her grandmother knead the dough with practiced hands.</mark> Each fold carried decades of memory — of harvests and hunger, of celebrations that spanned generations in their small village outside Oaxaca.</p>
+const passageParas = (plain = false) => `
+${plain
+  ? `<p><mark class="hl">The morning light filtered through the kitchen window as Elena watched her grandmother knead the dough with practiced hands. Each fold carried decades of memory</mark> — of harvests and hunger, of celebrations that spanned generations in their small village outside Oaxaca.</p>`
+  : `<p><mark class="hl">The morning light filtered through the kitchen window as Elena watched her grandmother knead the dough with practiced hands.</mark> Each fold carried decades of memory — of harvests and hunger, of celebrations that spanned generations in their small village outside Oaxaca.</p>`}
 <p>"You're not paying attention," Abuela said without looking up. Her fingers worked the masa with a rhythm that seemed as natural as breathing, pressing and turning, pressing and turning. "The dough tells you when it's ready. You have to listen."</p>
-<p>She had come to spend the summer with her grandmother partly out of obligation — her mother's gentle insistence — and partly out of a vague curiosity about the life her family had left behind when they moved to Phoenix. <span class="sel">But after two weeks of early mornings and flour-dusted afternoons,</span> the romantic notion of "connecting with her roots" had given way to the tedium of repetition.</p>
+<p>She had come to spend the summer with her grandmother partly out of obligation — her mother's gentle insistence — and partly out of a vague curiosity about the life her family had left behind when they moved to Phoenix. ${plain
+  ? 'But after two weeks of early mornings and flour-dusted afternoons,'
+  : '<span class="sel">But after two weeks of early mornings and flour-dusted afternoons,</span>'} the romantic notion of "connecting with her roots" had given way to the tedium of repetition.</p>
 <p>"I am listening," Elena said, though her mind had already drifted to the messages piling up on her phone, hidden in the pocket of her apron. Her friends were at the lake today. She could picture them: sunburned and laughing, posting stories she would scroll through later with an ache she couldn't quite name.</p>
 <p>Abuela paused her work and looked at Elena with eyes that held neither judgment nor sympathy — just a steady, unsentimental clarity. "When I was your age, I didn't want to learn this either. I wanted to go to the city, become a teacher, wear shoes that weren't covered in cornmeal." She resumed kneading. "But your great-grandmother told me something I didn't understand until much later: the things we carry forward aren't always the things we choose."</p>
 <p>Elena picked up her own ball of dough and began to work it, mimicking her grandmother's movements. The masa was cool and slightly sticky. She pressed too hard, and it spread thin in the center.</p>`;
 
-const passagePanel = () => `
+const passagePanel = (plain = false) => `
 <div class="p-pass">
   <div class="pp-title-row"><h2>Passage A — Literary Narrative</h2></div>
-  <div class="pp-text">${passageParas()}</div>
+  <div class="pp-text">${passageParas(plain)}</div>
+  ${plain ? '' : `
   <div class="float-tools">
     <div class="ft-swatch-wrap"><div class="ft-swatch"></div></div>
     <button class="ft-btn">${ic('clip')}</button>
@@ -274,7 +285,7 @@ const passagePanel = () => `
   </div>
   <div class="cursor-decal">
     <img class="cur" src="assets/cursor.svg" alt=""><img class="hi" src="assets/highlighter.svg" alt="">
-  </div>
+  </div>`}
   <div class="fake-scrollbar"></div>
 </div>`;
 
@@ -377,6 +388,19 @@ ${topBar()}
 </div>
 ${qNav()}`;
 
+/* 已出稿·默认态：文字版 Section 指示 + 无 note 的两栏默认态（复刻 3233-22117） */
+const screenDefault = () => `
+${topBar()}
+<div class="sec-text"><b>[Section Name]</b><span>·</span><span>Part 1 of 4</span></div>
+<div class="card">
+  <div class="content-row">
+    ${passagePanel(true)}
+    ${handle()}
+    ${questionPanel()}
+  </div>
+</div>
+${qNav()}`;
+
 /* 方案一：进度并入顶栏 chrome，单卡纯内容 */
 const screen2 = () => `
 <div class="chrome-head">
@@ -423,9 +447,9 @@ ${qNav(true)}`;
 
 /* ================= 渲染 ================= */
 const stage = document.getElementById('stage');
-[screen0(), screen1(), screen2(), screen3(), screen4()].forEach((html, i) => {
+[screen0(), screen1(), screenDefault(), screen2(), screen3(), screen4()].forEach((html, i) => {
   const el = document.createElement('div');
-  el.className = 'screen' + (i === 4 ? ' bleed' : '');
+  el.className = 'screen' + (i === 5 ? ' bleed' : '');
   el.dataset.v = i;
   el.innerHTML = html;
   stage.appendChild(el);
@@ -483,7 +507,7 @@ document.getElementById('swTabs').addEventListener('click', e => {
   if (b) show(+b.dataset.v);
 });
 window.addEventListener('keydown', e => {
-  if (/^[1-5]$/.test(e.key)) show(+e.key - 1);
+  if (/^[1-6]$/.test(e.key)) show(+e.key - 1);
 });
 stage.addEventListener('click', e => {
   const act = e.target.closest('[data-act="toggle-notes"]');
@@ -497,7 +521,7 @@ window.addEventListener('resize', () => { fit(); refresh(stage.querySelector('.s
 document.fonts && document.fonts.ready.then(() => refresh(stage.querySelector('.screen.on')));
 
 fit();
-const initV = /^#v[0-4]$/.test(location.hash) ? +location.hash.slice(2) : 0;
+const initV = /^#v[0-5]$/.test(location.hash) ? +location.hash.slice(2) : 0;
 show(initV);
 </script>
 </body>
